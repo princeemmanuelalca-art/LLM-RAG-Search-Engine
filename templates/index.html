@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archon | Document Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Newsreader:opsz,wght@6..72,300;6..72,400&display=swap" rel="stylesheet">
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #050505; }
+        .font-scholar { font-family: 'Newsreader', serif; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
+        ::selection { background: rgba(99,102,241,0.2); color: #e0e7ff; }
+
+        /* ── Working toggle ── */
+        .toggle-checkbox { position:absolute; opacity:0; width:0; height:0; }
+        .toggle-track {
+            display:block; width:32px; height:18px;
+            background:rgba(60,60,80,0.6);
+            border:1px solid rgba(99,102,241,0.2);
+            border-radius:9px; position:relative;
+            cursor:pointer; transition:background 0.2s, border-color 0.2s;
+        }
+        .toggle-track::after {
+            content:''; position:absolute; top:2px; left:2px;
+            width:12px; height:12px; border-radius:50%;
+            background:#52525b; transition:transform 0.2s, background 0.2s;
+        }
+        .toggle-checkbox:checked + .toggle-track { background:rgba(99,102,241,0.35); border-color:rgba(99,102,241,0.6); }
+        .toggle-checkbox:checked + .toggle-track::after { transform:translateX(14px); background:#a5b4fc; }
+
+        /* ── Animations ── */
+        @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        .msg-anim { animation: fadeUp 0.22s ease; }
+        @keyframes blink { 0%,100%{opacity:.15} 50%{opacity:1} }
+        .tdot { width:6px;height:6px;border-radius:50%;background:#a1a1aa;display:inline-block;margin:0 2px;animation:blink 1.2s infinite; }
+        .tdot:nth-child(2){animation-delay:.2s} .tdot:nth-child(3){animation-delay:.4s}
+
+        /* ── Toast ── */
+        #toast { position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:6px; }
+        .toast-item { padding:9px 16px;border-radius:10px;font-size:12px;animation:fadeUp .2s ease;backdrop-filter:blur(12px); }
+        .toast-success { background:rgba(16,32,22,0.95);border:1px solid rgba(62,180,110,0.3);color:#3eb46e; }
+        .toast-error   { background:rgba(32,10,10,0.95);border:1px solid rgba(239,68,68,0.3);color:#f87171; }
+        .toast-info    { background:rgba(10,10,30,0.95);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc; }
+
+        /* ── Suggested question chips — clickable ── */
+        .sq-chip {
+            display:inline-flex; align-items:flex-start; gap:8px;
+            padding:10px 14px; border-radius:12px; width:100%;
+            border:1px solid rgba(99,102,241,0.18);
+            background:rgba(99,102,241,0.05);
+            color:#8b8fa8; font-size:13px; cursor:pointer;
+            transition:all 0.15s; text-align:left;
+            font-family:'Inter',sans-serif;
+        }
+        .sq-chip:hover { border-color:rgba(99,102,241,0.4); color:#c4b5fd; background:rgba(99,102,241,0.1); }
+        .sq-chip iconify-icon { flex-shrink:0; margin-top:1px; }
+
+        /* ── File select dropdown ── */
+        .file-select {
+            background:rgba(14,14,20,0.9); border:1px solid rgba(60,60,80,0.5);
+            border-radius:8px; color:#a1a1aa; font-size:12px;
+            padding:5px 8px; cursor:pointer; outline:none;
+            font-family:'Inter',sans-serif; max-width:200px;
+        }
+        .file-select option { background:#0f0f14; color:#d4d4d8; }
+
+        /* ── Summary card ── */
+        .summary-card {
+            background:rgba(99,102,241,0.04);
+            border:1px solid rgba(99,102,241,0.12);
+            border-radius:16px; padding:16px 20px;
+        }
+    </style>
+</head>
+<body class="text-zinc-400 h-screen w-screen overflow-hidden flex antialiased">
+
+<input type="file" id="file-input" accept=".pdf,.docx,.txt" class="hidden" onchange="handleFileSelect(event)"/>
+<div id="toast"></div>
+
+<!-- ── Sidebar ── -->
+<aside class="w-72 hidden md:flex flex-col flex-shrink-0 bg-[#0A0A0B] border-r border-white/5 relative z-10">
+
+    <!-- Brand -->
+    <div class="h-16 flex items-center px-6 gap-3 border-b border-white/5 flex-shrink-0">
+        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 text-indigo-400">
+            <iconify-icon icon="solar:shield-star-linear" class="text-base"></iconify-icon>
+        </div>
+        <div class="flex flex-col">
+            <h1 class="text-sm font-medium tracking-tighter text-zinc-100 uppercase">Archon</h1>
+            <span class="text-xs text-zinc-500 tracking-widest uppercase">Document Intelligence</span>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="p-4 flex flex-col gap-2 flex-shrink-0">
+        <!-- New chat — same style -->
+        <button onclick="newChat()" class="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all text-sm font-medium text-zinc-200">
+            <iconify-icon icon="solar:add-circle-linear" class="text-lg"></iconify-icon>
+            New Chat
+        </button>
+        <!-- Clear index — always has border to match -->
+        <button onclick="clearIndex()" class="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-rose-400/60 hover:text-rose-400 bg-transparent hover:bg-rose-500/10 border border-white/5 hover:border-rose-500/20 transition-all">
+            <iconify-icon icon="solar:trash-bin-trash-linear" class="text-base"></iconify-icon>
+            Clear Documents
+        </button>
+    </div>
+
+    <!-- Scrollable nav -->
+    <div class="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-6 min-h-0">
+
+        <!-- Conversations -->
+        <div class="flex flex-col gap-2">
+            <h2 class="text-xs font-medium text-zinc-600 uppercase tracking-widest px-2">Past Chats</h2>
+            <div id="conv-list" class="flex flex-col gap-0.5">
+                <p class="text-xs text-zinc-600 px-2 py-2 italic">No chats yet</p>
+            </div>
+        </div>
+
+        <!-- Indexed files -->
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between px-2">
+                <h2 class="text-xs font-medium text-zinc-600 uppercase tracking-widest">Your Documents</h2>
+                <button onclick="document.getElementById('file-input').click()" class="text-zinc-600 hover:text-indigo-400 transition-colors" title="Upload">
+                    <iconify-icon icon="solar:upload-linear" class="text-sm"></iconify-icon>
+                </button>
+            </div>
+            <div id="file-list" class="flex flex-col gap-0.5">
+                <p id="no-files-msg" class="text-xs text-zinc-600 px-2 py-1 italic">No documents yet</p>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<!-- ── Main ── -->
+<main class="flex-1 flex flex-col min-w-0 bg-[#050505] relative">
+
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-64 bg-indigo-500/5 blur-[120px] pointer-events-none rounded-full"></div>
+
+    <!-- Topbar -->
+    <header class="h-16 flex items-center justify-between px-6 flex-shrink-0 relative z-10 border-b border-white/5 backdrop-blur-md bg-[#050505]/80 gap-4">
+        <h2 class="text-sm text-zinc-300 font-medium truncate flex-shrink-0" id="chat-title">Archon</h2>
+
+        <!-- File filter dropdown — shown when 2+ files indexed -->
+        <div id="filter-wrap" class="hidden items-center gap-2 flex-1">
+            <iconify-icon icon="solar:filter-linear" class="text-zinc-600 text-sm flex-shrink-0"></iconify-icon>
+            <span class="text-xs text-zinc-600 flex-shrink-0">Search in:</span>
+            <select id="file-filter" class="file-select" onchange="setFilter(this.value)">
+                <option value="all">All documents</option>
+            </select>
+        </div>
+
+        <div class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex-shrink-0">
+            <span class="relative flex h-1.5 w-1.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
+            </span>
+            <span class="text-xs font-medium text-indigo-400 tracking-wide uppercase" id="system-status">Ready</span>
+        </div>
+    </header>
+
+    <!-- Messages -->
+    <div id="messages" class="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth relative z-10 pb-48">
+        <div id="messages-inner" class="max-w-4xl mx-auto space-y-12 w-full">
+            <div id="empty-state" class="flex flex-col items-center justify-center min-h-[50vh] text-center gap-4">
+                <div class="flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-900/60 border border-white/5 text-zinc-600">
+                    <iconify-icon icon="solar:shield-star-linear" class="text-3xl"></iconify-icon>
+                </div>
+                <div>
+                    <p class="text-zinc-400 font-medium text-base">Start here</p>
+                    <p class="text-zinc-600 text-xs mt-1 uppercase tracking-widest">Upload a PDF, DOCX, or TXT to begin</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input dock -->
+    <div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#050505] via-[#050505]/95 to-transparent pointer-events-none z-20">
+        <div class="max-w-6xl mx-auto w-full pointer-events-auto">
+            <div class="flex flex-col bg-zinc-900/70 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 focus-within:border-indigo-500/50 focus-within:ring-4 focus-within:ring-indigo-500/10">
+                <div class="flex items-center p-2">
+                    <button onclick="document.getElementById('file-input').click()" class="p-3 text-zinc-500 hover:text-zinc-200 transition-colors rounded-xl hover:bg-white/5" title="Upload document">
+                        <iconify-icon icon="solar:paperclip-linear" class="text-xl"></iconify-icon>
+                    </button>
+                    <input id="query-input" type="text"
+                        placeholder="Ask a question about your document..."
+                        class="flex-1 bg-transparent text-zinc-100 px-3 py-3 text-sm md:text-base outline-none ring-0 placeholder:text-zinc-600 font-medium"
+                        onkeydown="handleKeyDown(event)"/>
+                    <button id="send-btn" onclick="sendQuery()" class="p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition-colors flex items-center justify-center shadow-md">
+                        <iconify-icon icon="solar:plain-linear" class="text-xl"></iconify-icon>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3 border-t border-white/5 bg-black/20">
+                    <label class="flex items-center gap-3 cursor-pointer" for="history-toggle">
+                        <input type="checkbox" id="history-toggle" class="toggle-checkbox" checked/>
+                        <span class="toggle-track"></span>
+                        <span class="text-xs font-medium text-zinc-500 hover:text-zinc-400 transition-colors select-none">Remember conversation</span>
+                    </label>
+                    <span class="text-xs font-medium text-zinc-600 flex items-center gap-1.5">
+                        <iconify-icon icon="solar:info-circle-linear" class="text-sm"></iconify-icon>
+                        RAG Engine Active
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────
+let sessionId   = null;
+let messageCount = 0;
+let indexedFiles = []; // string[]
+let activeFilter = 'all';
+
+// ── Init ───────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    await createSession();
+    await loadConversations();
+});
+
+// ── Session ────────────────────────────────────────────────────────
+async function createSession() {
+    try {
+        const r = await fetch('/api/conversations', { method:'POST' });
+        const d = await r.json();
+        if (d.success) sessionId = d.session_id;
+    } catch { sessionId = 'local-' + Date.now(); }
+}
+
+async function newChat() {
+    messageCount = 0;
+    activeFilter = 'all';
+    document.getElementById('file-filter').value = 'all';
+    document.getElementById('messages-inner').innerHTML = emptyStateHtml();
+    document.getElementById('chat-title').textContent = 'Archon';
+    await createSession();
+    await loadConversations();
+    showToast('New chat started', 'info');
+}
+
+// ── Conversations ──────────────────────────────────────────────────
+async function loadConversations() {
+    try {
+        const r = await fetch('/api/conversations');
+        const d = await r.json();
+        if (d.success) renderConversations(d.conversations);
+    } catch {}
+}
+
+function renderConversations(convs) {
+    const list = document.getElementById('conv-list');
+    if (!convs || !convs.length) {
+        list.innerHTML = `<p class="text-xs text-zinc-600 px-2 py-2 italic">No chats yet</p>`;
+        return;
+    }
+    list.innerHTML = convs.slice(0, 20).map(c => `
+        <div class="group w-full flex items-center gap-2 px-2 py-2 rounded-lg ${c.session_id === sessionId ? 'bg-zinc-800/40 border border-white/5' : 'hover:bg-white/5'} transition-colors">
+            <button onclick="loadConversation('${c.session_id}')" class="flex items-center gap-2 flex-1 min-w-0 text-left">
+                <iconify-icon icon="solar:chat-round-line-linear" class="text-base ${c.session_id === sessionId ? 'text-indigo-400' : 'text-zinc-600'} flex-shrink-0"></iconify-icon>
+                <span class="truncate text-sm ${c.session_id === sessionId ? 'text-zinc-200' : 'text-zinc-400 group-hover:text-zinc-200'} transition-colors">${escHtml(c.title || 'New Chat')}</span>
+            </button>
+            <button onclick="deleteConv('${c.session_id}')" class="opacity-0 group-hover:opacity-100 flex-shrink-0 p-1 rounded text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all" title="Delete">
+                <iconify-icon icon="solar:close-circle-linear" class="text-sm"></iconify-icon>
+            </button>
+        </div>`).join('');
+}
+
+async function loadConversation(sid) {
+    try {
+        const r = await fetch(`/api/conversations/${sid}`);
+        const d = await r.json();
+        if (!d.success) return;
+        sessionId = sid; messageCount = 0;
+        document.getElementById('messages-inner').innerHTML = '';
+        document.getElementById('chat-title').textContent = d.conversation.title || 'Archon';
+        (d.conversation.messages || []).forEach(m => {
+            messageCount++;
+            appendUserMessageSilent(m.question);
+            appendAIMessageSilent(m.answer);
+        });
+        await loadConversations();
+        scrollBottom();
+    } catch { showToast('Could not load this chat', 'error'); }
+}
+
+async function deleteConv(sid) {
+    try {
+        await fetch(`/api/conversations/${sid}`, { method:'DELETE' });
+        if (sid === sessionId) await newChat();
+        else await loadConversations();
+        showToast('Chat deleted', 'info');
+    } catch { showToast('Could not delete', 'error'); }
+}
+
+// ── File filter ────────────────────────────────────────────────────
+function updateFilterDropdown() {
+    const wrap   = document.getElementById('filter-wrap');
+    const select = document.getElementById('file-filter');
+
+    if (indexedFiles.length < 2) { wrap.classList.add('hidden'); return; }
+
+    // Show dropdown
+    wrap.classList.remove('hidden');
+    wrap.classList.add('flex');
+
+    // Rebuild options
+    const current = select.value;
+    select.innerHTML = '<option value="all">All documents</option>' +
+        indexedFiles.map(f =>
+            `<option value="${escHtml(f)}" ${current === f ? 'selected' : ''}>${escHtml(f.length > 30 ? f.slice(0,30)+'…' : f)}</option>`
+        ).join('');
+}
+
+function setFilter(val) {
+    activeFilter = val;
+    if (val !== 'all') showToast(`Searching in: ${val}`, 'info');
+}
+
+// ── Upload ─────────────────────────────────────────────────────────
+function handleFileSelect(e) {
+    const f = e.target.files[0];
+    if (f) uploadFile(f);
+    e.target.value = '';
+}
+
+async function uploadFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf','docx','txt'].includes(ext)) { showToast(`.${ext} files are not supported`, 'error'); return; }
+    if (indexedFiles.includes(file.name)) { showToast('This file is already uploaded', 'info'); return; }
+
+    setStatus('Uploading...');
+    showToast(`Uploading ${file.name}...`, 'info');
+
+    try {
+        const form = new FormData();
+        form.append('file', file);
+        const r = await fetch('/api/upload', { method:'POST', body:form });
+        const d = await r.json();
+
+        if (d.success) {
+            indexedFiles.push(file.name);
+            addFileToSidebar(file.name);
+            updateFilterDropdown();
+            document.getElementById('empty-state')?.remove();
+            showToast(`${file.name} is ready`, 'success');
+            setStatus('Ready');
+            await generateDocInsights(file.name);
+        } else {
+            showToast(d.error || 'Upload failed', 'error');
+            setStatus('Error');
+        }
+    } catch {
+        showToast('Upload failed — is the server running?', 'error');
+        setStatus('Error');
+    }
+}
+
+function addFileToSidebar(filename) {
+    document.getElementById('no-files-msg')?.remove();
+    const el = document.createElement('div');
+    el.className = 'group flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white/5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors msg-anim';
+    el.innerHTML = `
+        <iconify-icon icon="solar:document-text-linear" class="text-base text-zinc-500 group-hover:text-indigo-400 transition-colors flex-shrink-0"></iconify-icon>
+        <span class="truncate">${escHtml(filename)}</span>`;
+    document.getElementById('file-list').appendChild(el);
+}
+
+// ── Document insights ──────────────────────────────────────────────
+async function generateDocInsights(filename) {
+    setStatus('Reading document...');
+
+    const lid = 'loading-' + Date.now();
+    const loadEl = document.createElement('div');
+    loadEl.id = lid;
+    loadEl.className = 'flex flex-col gap-4 w-full pr-12 msg-anim';
+    loadEl.innerHTML = `
+        <div class="flex items-center gap-2 text-xs font-medium text-indigo-400/80 uppercase tracking-widest">
+            <iconify-icon icon="solar:document-text-linear" class="text-base"></iconify-icon>
+            <span>Reading "${escHtml(filename)}"…</span>
+        </div>
+        <div class="bg-zinc-900/40 border border-white/5 rounded-2xl px-6 py-4 inline-flex items-center gap-1 w-fit">
+            <span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>
+        </div>`;
+    document.getElementById('messages-inner').appendChild(loadEl);
+    scrollBottom();
+
+    try {
+        // Summary
+        const sr = await fetch('/api/query', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+                question: `In 2-3 simple sentences, what is this document about? Use plain, easy-to-understand language.`,
+                session_id: sessionId, use_history: false, top_k: 5
+            })
+        });
+        const sd = await sr.json();
+        const summary = sd.success ? sd.answer : 'Could not generate a summary.';
+
+        // Suggested questions
+        const qr = await fetch('/api/query', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+                question: `Write exactly 3 simple questions a student would ask about this document. Return ONLY a JSON array of 3 strings. Example: ["Question 1?","Question 2?","Question 3?"]`,
+                session_id: sessionId, use_history: false, top_k: 5
+            })
+        });
+        const qd = await qr.json();
+        let questions = [];
+        if (qd.success) {
+            try {
+                const raw = qd.answer.replace(/```json|```/g,'').trim();
+                const m = raw.match(/\[[\s\S]*?\]/);
+                if (m) questions = JSON.parse(m[0]);
+            } catch {}
+        }
+
+        document.getElementById(lid)?.remove();
+        appendInsightsCard(filename, summary, questions);
+        setStatus('Ready');
+    } catch {
+        document.getElementById(lid)?.remove();
+        setStatus('Ready');
+    }
+}
+
+function appendInsightsCard(filename, summary, questions) {
+    const el = document.createElement('div');
+    el.className = 'flex flex-col gap-4 w-full pr-12 msg-anim';
+
+    // Clickable question chips
+    const qHtml = questions.length > 0 ? `
+        <div class="mt-4 flex flex-col gap-2">
+            <p class="text-xs text-zinc-600 uppercase tracking-widest mb-1">Try asking:</p>
+            ${questions.map(q => `
+                <button class="sq-chip" onclick="askQuestion(this)">
+                    <iconify-icon icon="solar:arrow-right-linear" class="text-sm" style="margin-top:2px;flex-shrink:0"></iconify-icon>
+                    <span>${escHtml(q)}</span>
+                </button>`).join('')}
+        </div>` : '';
+
+    el.innerHTML = `
+        <div class="flex items-center gap-2 text-xs font-medium text-indigo-400/80 uppercase tracking-widest">
+            <iconify-icon icon="solar:document-text-linear" class="text-base"></iconify-icon>
+            <span>"${escHtml(filename)}" is ready</span>
+        </div>
+        <div class="summary-card">
+            <p class="text-xs text-zinc-600 uppercase tracking-widest mb-3">What this document is about</p>
+            <p class="text-zinc-300 text-sm leading-relaxed font-scholar">${escHtml(summary)}</p>
+            ${qHtml}
+        </div>`;
+    document.getElementById('messages-inner').appendChild(el);
+    scrollBottom();
+}
+
+// Clicking a suggested question fills input and sends
+function askQuestion(btn) {
+    const text = btn.querySelector('span').textContent.trim();
+    document.getElementById('query-input').value = text;
+    document.getElementById('query-input').focus();
+    sendQuery();
+}
+
+// ── Clear index ────────────────────────────────────────────────────
+async function clearIndex() {
+    if (!confirm('This will remove all uploaded documents. Are you sure?')) return;
+    try {
+        const r = await fetch('/api/clear', { method:'POST' });
+        const d = await r.json();
+        if (d.success) {
+            indexedFiles = [];
+            activeFilter = 'all';
+            document.getElementById('file-list').innerHTML =
+                '<p id="no-files-msg" class="text-xs text-zinc-600 px-2 py-1 italic">No documents yet</p>';
+            document.getElementById('filter-wrap').classList.add('hidden');
+            document.getElementById('filter-wrap').classList.remove('flex');
+            showToast('All documents cleared', 'info');
+        } else showToast(d.error || 'Could not clear', 'error');
+    } catch { showToast('Could not clear documents', 'error'); }
+}
+
+// ── Query ──────────────────────────────────────────────────────────
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuery(); }
+}
+
+async function sendQuery() {
+    const input = document.getElementById('query-input');
+    const q = input.value.trim();
+    if (!q) return;
+
+    input.value = '';
+    input.disabled = true;
+    document.getElementById('send-btn').disabled = true;
+    setStatus('Thinking...');
+    document.getElementById('empty-state')?.remove();
+
+    messageCount++;
+    if (messageCount === 1)
+        document.getElementById('chat-title').textContent = q.length > 52 ? q.slice(0,52)+'…' : q;
+
+    appendUserMessage(q);
+    const tid = appendTyping();
+
+    // Prepend filter instruction if a specific file is selected
+    const question = activeFilter !== 'all'
+        ? `Answer using only information from the file named "${activeFilter}". Question: ${q}`
+        : q;
+
+    const useHistory = document.getElementById('history-toggle').checked;
+
+    try {
+        const r = await fetch('/api/query', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ question, session_id:sessionId, use_history:useHistory, top_k:5 })
+        });
+        const d = await r.json();
+        removeTyping(tid);
+
+        if (d.success) {
+            const sources = d.sources || [];
+            const asksConf = /confidence|certainty|how sure|how certain|reliable|accurate/i.test(q);
+            const lowConf  = asksConf && (sources.length === 0 || sources.every(s => s.relevance < 0.4));
+            appendAIMessage(d.answer, sources, lowConf, q);
+            setStatus('Ready');
+            await loadConversations();
+        } else {
+            appendAIMessage(`Something went wrong: ${d.error}`, [], false, q);
+            setStatus('Error');
+        }
+    } catch {
+        removeTyping(tid);
+        appendAIMessage('Cannot connect — is the server running on port 5000?', [], false, q);
+        setStatus('Error');
+    }
+
+    input.disabled = false;
+    document.getElementById('send-btn').disabled = false;
+    input.focus();
+}
+
+// ── Message rendering ──────────────────────────────────────────────
+function appendUserMessage(text) {
+    const el = document.createElement('div');
+    el.className = 'flex flex-col items-end gap-2 w-full pl-12 msg-anim';
+    el.innerHTML = `
+        <div class="bg-zinc-800/40 border border-white/5 text-zinc-200 px-6 py-4 rounded-2xl rounded-tr-sm text-sm md:text-base leading-relaxed backdrop-blur-sm shadow-xl inline-block max-w-[85%]">
+            ${escHtml(text)}
+        </div>`;
+    document.getElementById('messages-inner').appendChild(el);
+    scrollBottom();
+}
+
+function appendUserMessageSilent(text) {
+    const el = document.createElement('div');
+    el.className = 'flex flex-col items-end gap-2 w-full pl-12';
+    el.innerHTML = `
+        <div class="bg-zinc-800/40 border border-white/5 text-zinc-200 px-6 py-4 rounded-2xl rounded-tr-sm text-sm leading-relaxed backdrop-blur-sm inline-block max-w-[85%]">
+            ${escHtml(text)}
+        </div>`;
+    document.getElementById('messages-inner').appendChild(el);
+}
+
+function appendAIMessage(text, sources, lowConf, originalQ) {
+    const msgId = 'ai-' + Date.now();
+    const el = document.createElement('div');
+    el.className = 'flex flex-col gap-4 w-full pr-12 msg-anim';
+
+    const confHtml = lowConf ? `
+        <div class="mt-3 inline-flex items-center gap-2.5 px-4 py-3 rounded-xl bg-rose-500/5 border border-rose-500/10 text-rose-400/80 text-sm w-fit">
+            <iconify-icon icon="solar:danger-triangle-linear" class="text-lg flex-shrink-0"></iconify-icon>
+            <span>The answer might not be fully accurate — the document may not cover this topic well.</span>
+        </div>` : '';
+
+    let citHtml = '';
+    if (sources && sources.length > 0) {
+        const cards = sources.map((s,i) => `
+            <div class="group relative flex flex-col gap-3 p-5 rounded-2xl border border-white/5 bg-zinc-900/20 hover:bg-zinc-800/40 hover:border-indigo-500/30 transition-all duration-500 overflow-hidden">
+                <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/0 group-hover:from-indigo-500/5 transition-all duration-500"></div>
+                <div class="flex items-start justify-between gap-3 relative z-10">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <span class="flex items-center justify-center w-5 h-5 rounded-md bg-white/5 text-xs text-zinc-400 font-medium flex-shrink-0">[${i+1}]</span>
+                        <span class="text-sm font-medium text-zinc-200 truncate">${escHtml(s.source)}</span>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">${Math.round(s.relevance*100)}% match</span>
+                </div>
+                <p class="text-xs text-zinc-500 leading-relaxed line-clamp-2 relative z-10 font-scholar">${escHtml(s.text)}</p>
+            </div>`).join('');
+        citHtml = `
+            <div class="mt-8 pt-8 border-t border-white/5">
+                <h3 class="text-xs font-medium text-zinc-600 uppercase tracking-widest mb-4">Where this came from</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">${cards}</div>
+            </div>`;
+    }
+
+    const retryHtml = originalQ ? `
+        <button onclick="retryAnswer(this, ${JSON.stringify(originalQ)})"
+            class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-zinc-600 hover:text-zinc-300 hover:bg-white/5 border border-transparent hover:border-white/10 transition-all">
+            <iconify-icon icon="solar:restart-linear" class="text-sm"></iconify-icon>
+            Try again
+        </button>` : '';
+
+    el.innerHTML = `
+        <div class="flex items-center gap-2 text-xs font-medium text-indigo-400/80 uppercase tracking-widest">
+            <iconify-icon icon="solar:magic-stick-3-linear" class="text-base"></iconify-icon>
+            <span>Answer</span>
+        </div>
+        <div class="group relative">
+            <div class="space-y-4 text-base md:text-lg text-zinc-300 leading-loose font-scholar font-light" id="${msgId}">
+                ${formatText(text)}
+            </div>
+            <div class="absolute -left-12 top-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-2">
+                <button onclick="copyMsg('${msgId}')" class="p-2 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/5 border border-transparent hover:border-white/10 transition-all" title="Copy answer">
+                    <iconify-icon icon="solar:copy-linear" class="text-lg"></iconify-icon>
+                </button>
+            </div>
+            ${confHtml}
+            ${citHtml}
+            ${retryHtml}
+        </div>`;
+    document.getElementById('messages-inner').appendChild(el);
+    scrollBottom();
+}
+
+function appendAIMessageSilent(text) {
+    const el = document.createElement('div');
+    el.className = 'flex flex-col gap-4 w-full pr-12';
+    el.innerHTML = `
+        <div class="flex items-center gap-2 text-xs font-medium text-indigo-400/80 uppercase tracking-widest">
+            <iconify-icon icon="solar:magic-stick-3-linear" class="text-base"></iconify-icon>
+            <span>Answer</span>
+        </div>
+        <div class="space-y-4 text-base md:text-lg text-zinc-300 leading-loose font-scholar font-light">
+            ${formatText(text)}
+        </div>`;
+    document.getElementById('messages-inner').appendChild(el);
+}
+
+function appendTyping() {
+    const id = 'typing-' + Date.now();
+    const el = document.createElement('div');
+    el.id = id;
+    el.className = 'flex flex-col gap-4 w-full pr-12 msg-anim';
+    el.innerHTML = `
+        <div class="flex items-center gap-2 text-xs font-medium text-indigo-400/80 uppercase tracking-widest">
+            <iconify-icon icon="solar:magic-stick-3-linear" class="text-base"></iconify-icon>
+            <span>Thinking…</span>
+        </div>
+        <div class="bg-zinc-900/40 border border-white/5 rounded-2xl px-6 py-4 inline-flex items-center gap-1 w-fit">
+            <span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>
+        </div>`;
+    document.getElementById('messages-inner').appendChild(el);
+    scrollBottom();
+    return id;
+}
+
+function removeTyping(id) { document.getElementById(id)?.remove(); }
+
+async function retryAnswer(btn, originalQ) {
+    btn.closest('.flex.flex-col.gap-4.w-full.pr-12')?.remove();
+    document.getElementById('query-input').value = originalQ;
+    await sendQuery();
+}
+
+async function copyMsg(id) {
+    await navigator.clipboard.writeText(document.getElementById(id)?.innerText || '');
+    showToast('Copied!', 'info');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+function scrollBottom() { const el = document.getElementById('messages'); el.scrollTop = el.scrollHeight; }
+function setStatus(s)   { document.getElementById('system-status').textContent = s; }
+function escHtml(s)     { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatText(t)  { return escHtml(t).replace(/\n\n/g,'</p><p class="mt-4">').replace(/\n/g,'<br/>').replace(/^/,'<p>').replace(/$/,'</p>'); }
+
+function emptyStateHtml() {
+    return `<div id="empty-state" class="flex flex-col items-center justify-center min-h-[50vh] text-center gap-4">
+        <div class="flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-900/60 border border-white/5 text-zinc-600">
+            <iconify-icon icon="solar:shield-star-linear" class="text-3xl"></iconify-icon>
+        </div>
+        <div>
+            <p class="text-zinc-400 font-medium text-base">Start here</p>
+            <p class="text-zinc-600 text-xs mt-1 uppercase tracking-widest">Upload a PDF, DOCX, or TXT to begin</p>
+        </div>
+    </div>`;
+}
+
+function showToast(msg, type='info') {
+    const el = document.createElement('div');
+    el.className = `toast-item toast-${type}`;
+    el.textContent = msg;
+    document.getElementById('toast').appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+}
+</script>
+</body>
+</html>

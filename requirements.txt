@@ -1,0 +1,29 @@
+# Archon — Requirements (HuggingFace Spaces Docker)
+
+# Core RAG
+sentence-transformers
+chromadb
+langchain
+langchain-community
+
+# LLM Providers
+groq
+openai
+anthropic
+google-generativeai
+
+# Document processing
+pymupdf
+python-docx
+beautifulsoup4
+
+# Web framework — Flask, NOT Streamlit
+flask
+flask-cors
+gunicorn
+werkzeug
+
+# Utilities
+python-dotenv
+numpy
+tqdm

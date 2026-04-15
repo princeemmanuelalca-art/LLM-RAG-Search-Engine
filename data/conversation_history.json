@@ -1,0 +1,44 @@
+{
+  "session_20260415_012031": {
+    "messages": [
+      {
+        "question": "In 2-3 simple sentences, what is this document about? Use plain, easy-to-understand language.",
+        "answer": "According to Prince_Emmanuel_Alca_Resume_1.pdf, this document appears to be a resume for Prince Emmanuel H. Alca, a Grade 11 student. It outlines his skills, education, and experiences, including his involvement in a school-based business venture. The document seems to be tailored for a job application, specifically for a part-time Crew Member position at McDonald's Calamba.",
+        "sources": [
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf"
+        ],
+        "timestamp": "2026-04-15T01:20:39.851252"
+      },
+      {
+        "question": "Write exactly 3 simple questions a student would ask about this document. Return ONLY a JSON array of 3 strings. Example: [\"Question 1?\",\"Question 2?\",\"Question 3?\"]",
+        "answer": "[\"What is Prince Emmanuel Alca's date of birth?\", \"What type of high school strand is he currently enrolled in?\", \"What are some of the appliances he can service and repair?\"]",
+        "sources": [
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf"
+        ],
+        "timestamp": "2026-04-15T01:20:40.292579"
+      },
+      {
+        "question": "What type of high school strand is he currently enrolled in?",
+        "answer": "According to Prince_Emmanuel_Alca_Resume_1.pdf, Prince Emmanuel Alca is currently enrolled in the Technical-Vocational-Livelihood (TVL) Strand in Senior High School at Calamba City Science Integrated School.",
+        "sources": [
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf",
+          "Prince_Emmanuel_Alca_Resume_1.pdf"
+        ],
+        "timestamp": "2026-04-15T01:20:46.523425"
+      }
+    ],
+    "created_at": "2026-04-15T01:20:31.486381",
+    "title": "In 2-3 simple sentences, what is this document abo..."
+  }
+}
