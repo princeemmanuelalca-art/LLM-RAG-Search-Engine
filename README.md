@@ -40,3 +40,31 @@ Set your `GROQ_API_KEY` in Space → Settings → Secrets.
 ---
 
 ## Project Structure
+Archon/
+├── app.py                  # Flask entry point
+├── rag_system.py           # RAG core (ChromaDB + LLM)
+├── templates/index.html    # Full frontend UI
+├── utils/
+│   ├── config.py           # LLM provider config
+│   └── llm_interface.py    # Groq API handler
+├── requirements.txt
+├── Dockerfile
+└── .env.example
+
+---
+
+## Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Flask (Python) |
+| LLM | Groq — `llama-3.1-8b-instant` |
+| Vector DB | ChromaDB |
+| Embeddings | sentence-transformers |
+| Hosting | HuggingFace Spaces (Docker) |
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
